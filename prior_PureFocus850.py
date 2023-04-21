@@ -8,6 +8,8 @@ class Controller:
     def __init__(self,
                  which_port,
                  name='PureFocus850',
+                 control_mode='Piezo drive',
+                 sensor_mode='Line mode',
                  verbose=True,
                  very_verbose=False):
         self.name = name
@@ -20,9 +22,12 @@ class Controller:
         except serial.serialutil.SerialException:
             raise IOError('%s: unable to connect on %s'%(self.name, which_port))
         if self.verbose: print('done.')        
-        self.info = self._get_info()
+        self._get_info()
         if self.info[0] != "Prior Scientific Instruments OptiScan LF":
             raise IOError("%s: product not supported"%self.name)
+        self._set_config(control_mode, sensor_mode)
+        self._piezo_range_tol_pct = 0.1 # 10%? only certain ranges are accepted
+        self._piezo_voltage_tol  = 2 * (10 / 4096) # 2x min voltage step
 
     def _send(self, cmd, response_lines=1):
         if self.very_verbose:
@@ -38,6 +43,8 @@ class Controller:
                 print('%s: -> response = '%self.name, response_line)
             self._check_error(response_line)
         assert self.port.inWaiting() == 0
+        if len(response) == 1:
+            response = response[0] # avoid list for single line responses
         return response
 
     def _check_error(self, response):
@@ -63,11 +70,111 @@ class Controller:
     def _get_info(self):
         if self.verbose:
             print('%s: getting info'%self.name)
-        response = self._send('DATE', response_lines=2)
+        self.info = self._send('DATE', response_lines=2)
         if self.verbose:
-            print('%s: -> product = %s'%(self.name, response[0]))
-            print('%s: -> version = %s'%(self.name, response[1]))
-        return response
+            print('%s: -> product = %s'%(self.name, self.info[0]))
+            print('%s: -> version = %s'%(self.name, self.info[1]))
+        return self.info
+
+    def _get_config(self):
+        if self.verbose:
+            print('%s: getting config'%self.name)        
+        m, s = self._send('CONFIG').split(',')
+        m_to_config = {
+            'S':'Stepper drive', 'P':'Piezo drive', 'H':'Measure mode'}
+        s_to_config = {'S':'Slice mode', 'L':'Line mode'}
+        self.control_mode = m_to_config[m]
+        self.sensor_mode  = s_to_config[s]
+        if self.verbose:
+            print('%s: -> control_mode = %s'%(self.name, self.control_mode))
+            print('%s: -> sensor_mode  = %s'%(self.name, self.sensor_mode))
+        return self.control_mode, self.sensor_mode
+
+    def _set_config(self, control_mode, sensor_mode):
+        if self.verbose:
+            print('%s: setting config:'%self.name)
+            print('%s: -> control_mode = %s'%(self.name, control_mode))
+            print('%s: -> sensor_mode  = %s'%(self.name, sensor_mode))
+        config_to_m = {'Stepper drive':'S', # Prior (or other) stepper drive
+                       'Piezo drive':'P',   # 0-10V analogue output
+                       'Measure mode':'H'}  # error is output to DAC
+        config_to_s = {'Slice mode':'S',    # PF850  system, PF185  head
+                       'Line mode':'L'}     # PF850M system, PF185M head
+        self._send('CONFIG' +
+                   ',' + config_to_m[control_mode] +
+                   ',' + config_to_s[sensor_mode])
+        assert self._get_config() == (control_mode, sensor_mode)
+        if self.verbose:
+            print('%s: done setting config'%self.name)
+        return None
+
+    def get_piezo_range_um(self):
+        if self.verbose:
+            print('%s: getting piezo range'%self.name)
+        assert self.control_mode == 'Piezo drive'
+        self.piezo_range_um = int(self._send('UPR'))
+        if self.verbose:
+            print('%s: -> piezo_range_um = %i'%(
+                self.name, self.piezo_range_um))
+        return self.piezo_range_um
+
+    def set_piezo_range_um(self, range_um):
+        # NOTE: only certain values are accepted!
+        # consider setting this range as close as possible to the desired value
+        # then setting the actual piezo range (on the piezo controller) to match
+        assert isinstance(range_um, int) or isinstance(range_um, float)
+        assert 1 <= range_um <= 1000 # 1mm limit?
+        if self.verbose:
+            print('%s: setting piezo range (um) = %0.2f'%(self.name, range_um))
+        self._send('UPR,' + str(range_um))
+        self.get_piezo_range_um()
+        tol_pct = self._piezo_range_tol_pct
+        assert self.piezo_range_um <= range_um + range_um * tol_pct
+        assert self.piezo_range_um >= range_um - range_um * tol_pct
+        if self.verbose:
+            print('%s: -> done setting piezo range'%self.name)
+        return None
+
+    def get_piezo_voltage(self):
+        if self.verbose:
+            print('%s: getting piezo voltage'%self.name)
+        DAC_output = int(self._send('PIEZO'))
+        self.piezo_voltage = 10 * DAC_output / 4096
+        if self.verbose:
+            print('%s: -> voltage = %0.2f'%(self.name, self.piezo_voltage))
+        return self.piezo_voltage
+
+    def set_piezo_voltage(self, voltage):
+        assert isinstance(voltage, int) or isinstance(voltage, float)
+        assert 0 <= voltage <= 10
+        if self.verbose:
+            print('%s: setting piezo voltage = %0.2f'%(self.name, voltage))
+        DAC_output = 4096 * (voltage / 10)
+        self._send('PIEZO,' + str(DAC_output))
+        self.get_piezo_voltage()
+        assert self.piezo_voltage <= voltage + self._piezo_voltage_tol
+        assert self.piezo_voltage >= voltage - self._piezo_voltage_tol
+        if self.verbose:
+            print('%s: -> done setting piezo voltage'%self.name)
+        return None
+
+    def get_servo_enable(self):
+        if self.verbose:
+            print('%s: getting servo enable'%self.name)
+        self.servo_enable = bool(int(self._send('SERVO')))
+        if self.verbose:
+            print('%s: -> enable = %s'%(self.name, self.servo_enable))
+        return self.servo_enable
+
+    def set_servo_enable(self, enable):
+        assert isinstance(enable, bool)
+        if self.verbose:
+            print('%s: setting servo enable = %s'%(self.name, enable))
+        self._send('SERVO,' + str(int(enable)))
+        assert self.get_servo_enable() == enable
+        if self.verbose:
+            print('%s: -> done setting servo enable'%self.name)
+        return None
 
     def close(self):
         if self.verbose: print("%s: closing..."%self.name, end=' ')
@@ -76,6 +183,29 @@ class Controller:
         return None
 
 if __name__ == '__main__':
-    autofocus = Controller(which_port='COM8', verbose=True, very_verbose=True)
+    autofocus = Controller(which_port='COM8', verbose=True, very_verbose=False)
+
+    import numpy as np
+    import random
+    iterations = 10
+    
+    print('\n# Testing piezo range:') # NOTE: only certain values are accepted!
+    ranges = np.linspace(1, 1000, iterations)
+    for range_um in ranges:
+        autofocus.set_piezo_range_um(range_um)
+
+    print('\n# Testing voltage range:')
+    voltages = np.linspace(0, 1, iterations)
+    for v in voltages:
+        autofocus.set_piezo_voltage(v)
+
+    print('\n# Testing random voltages:')
+    for i in range(iterations):
+        v = random.uniform(0, 1)
+        autofocus.set_piezo_voltage(v)
+
+    print('\n# Testing servo:')
+    autofocus.set_servo_enable(True)
+    autofocus.set_servo_enable(False)
 
     autofocus.close()
