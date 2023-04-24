@@ -18,7 +18,7 @@ class Controller:
         if self.verbose: print("%s: opening..."%self.name, end='')
         try:
             self.port = serial.Serial(
-                port=which_port, baudrate=460800, timeout=5)
+                port=which_port, baudrate=460800, timeout=1)
         except serial.serialutil.SerialException:
             raise IOError('%s: unable to connect on %s'%(self.name, which_port))
         if self.verbose: print('done.')        
@@ -62,6 +62,9 @@ class Controller:
             'E,15':'Argument 6 out of range',
             }
         error = None
+        if response =='':
+            print('%s: ***ERROR***: No response!'%(self.name))
+            raise TypeError('Is the PF850 autofocus powered up?')
         if response[0] == 'E':
             error = error_codes[response]
             print('%s: ***ERROR***: %s (%s)'%(self.name, response, error))
@@ -176,6 +179,30 @@ class Controller:
             print('%s: -> done setting servo enable'%self.name)
         return None
 
+    def get_digipot_mode(self):
+        if self.verbose:
+            print('%s: getting digipot mode'%self.name)
+        n = int(self._send('LENS'))
+        if n == 0: self.digipot_mode = 'Focus'
+        if n == 1: self.digipot_mode = 'Offset'
+        if self.verbose:
+            print('%s: -> mode = %s'%(self.name, self.digipot_mode))
+        return self.digipot_mode
+
+    def set_digipot_mode(self, mode): # not actually documented but works :)
+        assert mode in (
+            'Focus',    # the user manually focuses (no autofocus)
+            'Offset')   # the user adjusts the offset (autofocus typically on)
+        if self.verbose:
+            print('%s: setting digipot mode = %s'%(self.name, mode))
+        if mode == 'Focus':  n = 0
+        if mode == 'Offset': n = 1
+        self._send('LENS,' + str(n))
+        assert self.get_digipot_mode() == mode
+        if self.verbose:
+            print('%s: -> done setting digipot mode'%self.name)
+        return None
+
     def close(self):
         if self.verbose: print("%s: closing..."%self.name, end=' ')
         self.port.close()
@@ -207,5 +234,9 @@ if __name__ == '__main__':
     print('\n# Testing servo:')
     autofocus.set_servo_enable(True)
     autofocus.set_servo_enable(False)
+
+    print('\n# Testing digipot:')
+    autofocus.set_digipot_mode('Focus')
+    autofocus.set_digipot_mode('Offset')
 
     autofocus.close()
