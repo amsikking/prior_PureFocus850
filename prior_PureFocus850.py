@@ -203,6 +203,14 @@ class Controller:
             print('%s: -> done setting digipot mode'%self.name)
         return None
 
+    def get_focus_flag(self):
+        if self.verbose:
+            print('%s: getting focus flag'%self.name)
+        in_focus = bool(int(self._send('FOCUS')))
+        if self.verbose:
+            print('%s: -> in_focus = %s'%(self.name, in_focus))
+        return in_focus
+
     def close(self):
         if self.verbose: print("%s: closing..."%self.name, end=' ')
         self.port.close()
@@ -239,4 +247,7 @@ if __name__ == '__main__':
     autofocus.set_digipot_mode('Focus')
     autofocus.set_digipot_mode('Offset')
 
+    print('\n# Testing focus flag:')
+    autofocus.get_focus_flag()
+    
     autofocus.close()
