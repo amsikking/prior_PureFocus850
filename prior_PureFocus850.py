@@ -26,6 +26,7 @@ class Controller:
         if self.info[0] != "Prior Scientific Instruments OptiScan LF":
             raise IOError("%s: product not supported"%self.name)
         self._set_config(control_mode, sensor_mode)
+        self._get_offset_lens_position() # confirms PF185M head attached
         self._piezo_range_tol_pct = 0.1 # 10%? only certain ranges are accepted
         self._piezo_voltage_tol  = 2 * (10 / 4096) # 2x min voltage step
 
@@ -64,7 +65,9 @@ class Controller:
         error = None
         if response =='':
             print('%s: ***ERROR***: No response!'%(self.name))
-            raise TypeError('Is the PF850 autofocus powered up?')
+            raise TypeError(
+                '\nIs the PF850 autofocus controller powered up?\n' +
+                'Is the PF185M autofocus head connected?')
         if response[0] == 'E':
             error = error_codes[response]
             print('%s: ***ERROR***: %s (%s)'%(self.name, response, error))
@@ -111,6 +114,15 @@ class Controller:
             print('%s: done setting config'%self.name)
         return None
 
+    def _get_offset_lens_position(self):
+        if self.verbose:
+            print('%s: getting offset lens position'%self.name)
+        self.offset_lens_position = int(self._send('LENSP'))
+        if self.verbose:
+            print('%s: -> offset_lens_position = %i'%(
+                self.name, self.offset_lens_position))
+        return self.offset_lens_position
+
     def get_piezo_range_um(self):
         if self.verbose:
             print('%s: getting piezo range'%self.name)
@@ -147,7 +159,7 @@ class Controller:
             print('%s: -> voltage = %0.2f'%(self.name, self.piezo_voltage))
         return self.piezo_voltage
 
-    def set_piezo_voltage(self, voltage):
+    def set_piezo_voltage(self, voltage):      
         assert isinstance(voltage, int) or isinstance(voltage, float)
         assert 0 <= voltage <= 10
         if self.verbose:
