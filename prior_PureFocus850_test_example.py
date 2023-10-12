@@ -13,10 +13,10 @@ for i in range(z_um):
 
 # Prepare to switch piezo to analogue control mode:
 # -> consider picking z_range_um < objective working distance
-z_range_um = 300
-piezo.set_analog_control_limits(                # 0-10V is 'z_range_um'
-    v_min=0, v_max=10, z_min_ai=0, z_max_ai=z_range_um)
-autofocus.set_piezo_range_um(z_range_um)        # pass 'z_range_um' to autofocus
+z_range_um = 300                                # 300um example
+autofocus.set_piezo_range_um(z_range_um)        # actual range may differ
+piezo.set_analog_control_limits(                # 0-10V is '.piezo_range_um'
+    v_min=0, v_max=10, z_min_ai=0, z_max_ai=autofocus.piezo_range_um)
 z0_voltage = piezo.get_voltage_for_move_um(0)    # get voltage for ~zero motion
 autofocus.set_piezo_voltage(z0_voltage)          # set voltage for ~zero motion
 
