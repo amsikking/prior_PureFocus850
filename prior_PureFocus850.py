@@ -29,6 +29,7 @@ class Controller:
         self._get_offset_lens_position() # confirms PF185M head attached
         self._piezo_range_tol_pct = 0.1 # 10%? only certain ranges are accepted
         self._piezo_voltage_tol  = 2 * (10 / 4096) # 2x min voltage step
+        self.get_servo_enable() # what's the current state of the servo?
 
     def _send(self, cmd, response_lines=1):
         if self.very_verbose:
@@ -159,16 +160,19 @@ class Controller:
             print('%s: -> voltage = %0.2f'%(self.name, self.piezo_voltage))
         return self.piezo_voltage
 
-    def set_piezo_voltage(self, voltage):      
+    def set_piezo_voltage(self, voltage):
         assert isinstance(voltage, int) or isinstance(voltage, float)
         assert 0 <= voltage <= 10
+        assert not self.servo_enable, (
+            "cannot 'set_piezo_voltage' with servo enabled")
         if self.verbose:
             print('%s: setting piezo voltage = %0.2f'%(self.name, voltage))
         DAC_output = 4096 * (voltage / 10)
         self._send('PIEZO,' + str(DAC_output))
         self.get_piezo_voltage()
-        assert self.piezo_voltage <= voltage + self._piezo_voltage_tol
-        assert self.piezo_voltage >= voltage - self._piezo_voltage_tol
+        e = "cannot 'set_piezo_voltage' within range, is the servo enabled?"
+        assert self.piezo_voltage <= voltage + self._piezo_voltage_tol, e
+        assert self.piezo_voltage >= voltage - self._piezo_voltage_tol, e
         if self.verbose:
             print('%s: -> done setting piezo voltage'%self.name)
         return None
