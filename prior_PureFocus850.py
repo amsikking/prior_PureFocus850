@@ -257,6 +257,14 @@ class Controller:
             print('%s: -> done setting digipot mode'%self.name)
         return None
 
+    def get_sample_flag(self):
+        if self.verbose:
+            print('%s: getting sample flag'%self.name)
+        sample_detected = bool(int(self._send('SAMPLE')))
+        if self.verbose:
+            print('%s: -> sample_detected = %s'%(self.name, sample_detected))
+        return sample_detected
+
     def get_focus_flag(self):
         if self.verbose:
             print('%s: getting focus flag'%self.name)
@@ -306,7 +314,8 @@ if __name__ == '__main__':
     autofocus.set_digipot_mode('Focus')
     autofocus.set_digipot_mode('Offset')
 
-    print('\n# Testing focus flag:')
+    print('\n# Testing sample/focus flags:')
+    autofocus.get_sample_flag()
     autofocus.get_focus_flag()
     
     autofocus.close()
