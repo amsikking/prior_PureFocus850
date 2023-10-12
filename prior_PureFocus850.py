@@ -1,3 +1,4 @@
+import time
 import serial
 
 class Controller:
@@ -29,6 +30,7 @@ class Controller:
         self._get_offset_lens_position() # confirms PF185M head attached
         self._piezo_range_tol_pct = 0.1 # 10%? only certain ranges are accepted
         self._piezo_voltage_tol  = 2 * (10 / 4096) # 2x min voltage step
+        self.get_current_objective()
         self.get_servo_enable() # what's the current state of the servo?
 
     def _send(self, cmd, response_lines=1):
@@ -124,6 +126,15 @@ class Controller:
                 self.name, self.offset_lens_position))
         return self.offset_lens_position
 
+    def _get_offset_lens_moving(self):
+        if self.verbose:
+            print('%s: getting offset lens moving'%self.name)
+        self.offset_lens_moving = bool(int(self._send('LENS$')))
+        if self.verbose:
+            print('%s: -> offset_lens_moving = %s'%(
+                self.name, self.offset_lens_moving))
+        return self.offset_lens_moving
+
     def get_piezo_range_um(self):
         if self.verbose:
             print('%s: getting piezo range'%self.name)
@@ -176,6 +187,33 @@ class Controller:
         if self.verbose:
             print('%s: -> done setting piezo voltage'%self.name)
         return None
+
+    def get_current_objective(self):
+        if self.verbose:
+            print('%s: getting current objective'%self.name)
+        self.current_objective = int(self._send('OBJ'))
+        if self.verbose:
+            print('%s: -> current_objective = %i'%(
+                self.name, self.current_objective))
+        return self.current_objective
+
+    def set_current_objective(self, n, polling_wait_s=0.1): # 1 <= n <= 6
+        assert isinstance(n, int)
+        assert 1 <= n <= 6        
+        if self.verbose:
+            print('%s: setting current objective = %i\n'%(self.name, n))
+        self._send('OBJ,' + str(n))
+        assert self.get_current_objective() == n
+        verbose = self.verbose
+        self.verbose = False
+        while self._get_offset_lens_moving(): # blocks method until done!
+            print('.', end='')
+            time.sleep(polling_wait_s)
+        self.verbose = verbose
+        if self.verbose:
+            print('\n%s: -> current_objective = %i'%(
+                self.name, self.current_objective))
+        return self.current_objective
 
     def get_servo_enable(self):
         if self.verbose:
@@ -254,6 +292,11 @@ if __name__ == '__main__':
     for i in range(iterations):
         v = random.uniform(0, 1)
         autofocus.set_piezo_voltage(v)
+
+##    print('\n# Testing objectives:')
+##    for i in range(6):
+##        autofocus.set_current_objective(i + 1)
+##    autofocus.set_current_objective(1)
 
     print('\n# Testing servo:')
     autofocus.set_servo_enable(True)
