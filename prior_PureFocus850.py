@@ -30,8 +30,11 @@ class Controller:
         self._get_offset_lens_position() # confirms PF185M head attached
         self._piezo_range_tol_pct = 0.1 # 10%? only certain ranges are accepted
         self._piezo_voltage_tol  = 2 * (10 / 4096) # 2x min voltage step
+        self.get_piezo_range_um()
+        self.get_piezo_voltage()
         self.get_current_objective()
-        self.get_servo_enable() # what's the current state of the servo?
+        self.set_servo_enable(False) # avoid possible on from previous crash
+        self.get_digipot_mode()
 
     def _send(self, cmd, response_lines=1):
         if self.very_verbose:
@@ -275,6 +278,8 @@ class Controller:
 
     def close(self):
         if self.verbose: print("%s: closing..."%self.name, end=' ')
+        if self.servo_enable:
+            self.set_servo_enable(False) # safer to switch off
         self.port.close()
         if self.verbose: print("done.")
         return None
