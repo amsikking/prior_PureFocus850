@@ -277,6 +277,27 @@ class Controller:
             print('%s: -> done setting digipot mode'%self.name)
         return None
 
+    def get_sample_flag_threshold(self):
+        if self.verbose:
+            print('%s: getting sample flag threshold'%self.name)
+        self.sample_flag_threshold = int(self._send('SAMPLEL'))
+        if self.verbose:
+            print('%s: -> sample flag threshold = %s'%(
+                self.name, self.sample_flag_threshold))
+        return self.sample_flag_threshold
+
+    def set_sample_flag_threshold(self, threshold):
+        assert isinstance(threshold, int)
+        assert 0 <= threshold <= 1500 * 2**12 # 1500px with max 12bit value
+        if self.verbose:
+            print('%s: setting sample flag threshold = %s'%(
+                self.name, threshold))
+        self._send('SAMPLEL,' + str(threshold))
+        assert self.get_sample_flag_threshold() == threshold
+        if self.verbose:
+            print('%s: -> done setting sample flag threshold'%self.name)
+        return None
+
     def get_sample_flag(self):
         if self.verbose:
             print('%s: getting sample flag'%self.name)
@@ -340,6 +361,11 @@ if __name__ == '__main__':
     print('\n# Testing digipot:')
     autofocus.set_digipot_mode('Focus')
     autofocus.set_digipot_mode('Offset')
+
+##    print('\n# Testing sample flag thresholds:')
+##    for t in range(iterations):
+##        threshold = int(t * 6144000/iterations)
+##        autofocus.set_sample_flag_threshold(threshold)
 
     print('\n# Testing sample/focus flags:')
     autofocus.get_sample_flag()
