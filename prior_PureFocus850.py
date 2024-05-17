@@ -120,7 +120,7 @@ class Controller:
             print('%s: done setting config'%self.name)
         return None
 
-    def _get_offset_lens_position(self):
+    def _get_offset_lens_position(self): # (25600 steps/mm)
         if self.verbose:
             print('%s: getting offset lens position'%self.name)
         self.offset_lens_position = int(self._send('LENSP'))
@@ -128,6 +128,23 @@ class Controller:
             print('%s: -> offset_lens_position = %i'%(
                 self.name, self.offset_lens_position))
         return self.offset_lens_position
+
+    def _set_offset_lens_position(self, offset_lens_position, wait_s=0.2):
+        assert isinstance(offset_lens_position, int)
+        assert 0 <= offset_lens_position <= 765747, (
+            'offset_lens_position (%i) out of range'%offset_lens_position)
+        if self.verbose:
+            print('%s: setting offset lens position = %i'%(
+                self.name, offset_lens_position))
+        self._send('LENSG,' + str(offset_lens_position))
+        while True:
+            self._get_offset_lens_position()
+            if offset_lens_position == self.offset_lens_position:
+                break
+            time.sleep(wait_s)
+        if self.verbose:
+            print('%s: -> done setting offset lens position'%self.name)
+        return None
 
     def _get_offset_lens_moving(self):
         if self.verbose:
@@ -290,7 +307,12 @@ if __name__ == '__main__':
     import numpy as np
     import random
     iterations = 10
-    
+
+##    print('\n# Testing offset lens range:')
+##    for mm in range(30):
+##        offset_lens_position = mm * 25600
+##        autofocus._set_offset_lens_position(offset_lens_position)
+
     print('\n# Testing piezo range:') # NOTE: only certain values are accepted!
     ranges = np.linspace(1, 1000, iterations)
     for range_um in ranges:
