@@ -9,6 +9,9 @@ There isn't one -> you have the read the manual, but here's the basic steps:
 - Run the GUI 'PureFocus850.exe' to test communication and start setting up.
 - Now follow the manual 'Pure-Focus-850_EN_UK_Manual.pdf' (a version included here) to align the head to the optical axis of the microscope (1 time setup), and then configure for each objective/sample combination (regular setup, configurations can be saved).
 - Finally start testing 'prior_PureFocus850.py' and 'prior_PureFocus850_test_example.py'
+
+![social_preview](https://github.com/amsikking/prior_PureFocus850/blob/main/social_preview.png)
+
 ## Details:
 - The document 'PureFocus850-Datasheet.pdf' is good for mechanical integration, dichroic transmission and part# info (a version included here).
 - The document 'PureFocus-Software-Guide.pdf' is good for quickly navigating the GUI (a version included here).
